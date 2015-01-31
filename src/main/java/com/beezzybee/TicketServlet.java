@@ -3,7 +3,6 @@ package com.beezzybee;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -38,12 +37,17 @@ public class TicketServlet extends HttpServlet {
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp)
 			throws ServletException, IOException {
 		
+		if (req.getSession().getAttribute("username") == null) {
+			resp.sendRedirect("login");
+			return;
+		}
+		
 		String action = req.getParameter("action");
 		if (action == null) 
 			action = "list";
 		switch(action) {
 			case "create":
-				this.showTicketForm(resp);
+				this.showTicketForm(req, resp);
 				break;
 			case "view":
 				this.viewTicket(req, resp);
@@ -53,7 +57,7 @@ public class TicketServlet extends HttpServlet {
 				break;
 			case "list":
 			default:
-				this.listTickets(resp);
+				this.listTickets(req, resp);
 				break;
 		}
 	}
@@ -61,6 +65,11 @@ public class TicketServlet extends HttpServlet {
 	@Override
 	protected void doPost(HttpServletRequest req, HttpServletResponse resp)
 			throws ServletException, IOException {
+		if (req.getSession().getAttribute("username") == null) {
+			resp.sendRedirect("login");
+			return;
+		}
+		
 		String action = req.getParameter("action");
 		if (action == null)
 			action = "list";
@@ -78,7 +87,7 @@ public class TicketServlet extends HttpServlet {
 	private void createTicket(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
 		
 		Ticket ticket = new Ticket();
-		ticket.setCustomerName(req.getParameter("customerName"));
+		ticket.setCustomerName((String)req.getSession().getAttribute("username"));
 		ticket.setSubject(req.getParameter("subject"));
 		ticket.setBody(req.getParameter("body"));
 		
@@ -116,59 +125,20 @@ public class TicketServlet extends HttpServlet {
 		return attachment;
 	}
 
-	private void showTicketForm(HttpServletResponse resp) throws IOException {
-		PrintWriter writer = this.writeHeader(resp);
-		
-		writer.append("<h2>Create a Ticket</h2>\r\n");
-		writer.append("<form method=\"POST\" action=\"tickets\" ")
-			  .append("enctype=\"multipart/form-data\">\r\n");
-		writer.append("<input type=\"hidden\" name=\"action\" ")
-			  .append("value=\"create\" />\r\n");
-		writer.append("Your Name<br/>\r\n");
-		writer.append("<input type=\"text\" name=\"customerName\"/><br/><br/>\r\n");
-		writer.append("Subject<br/>\r\n");
-		writer.append("<input type=\"text\" name=\"subject\"/><br/><br/>\r\n");
-		writer.append("Body<br/>\r\n");
-		writer.append("<textarea name=\"body\" rows=\"5\" cols=\"30\">")
-			  .append("</textarea><br/><br/>\r\n");
-		writer.append("<b>Attachments</b><br/>\r\n");
-		writer.append("<input type=\"file\" name=\"file1\" /><br/><br/>\r\n");
-		writer.append("<input type=\"submit\" value=\"Submit\"/>\r\n");
-		writer.append("</form>\r\n");
-		
-		this.writeFooter(writer);
+	private void showTicketForm(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
+		req.getRequestDispatcher("/WEB-INF/jsp/view/ticketForm.jsp").forward(req, resp);
 	}
 
-	private void viewTicket(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+	private void viewTicket(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 		String idString = req.getParameter("ticketId");
 		Ticket ticket = this.getTicket(idString, resp);
 		if (ticket == null)
 			return;
 		
-		PrintWriter writer = this.writeHeader(resp);
-		writer.append("<h2>Ticket #").append(idString)
-			.append(": ").append(ticket.getSubject()).append("</h2>\r\n");
-		writer.append("<i>Customer name - ").append(ticket.getCustomerName())
-			.append("</i><br/><br/>\r\n");
-		writer.append(ticket.getBody()).append("<br/><br/>\r\n");
+		req.setAttribute("ticketId", idString);
+		req.setAttribute("ticket", ticket);
 		
-		if (ticket.getNumberOfAttachments() > 0) {
-			writer.append("Attachments: ");
-			int i = 0;
-			for(Attachment attachment : ticket.getAttachments()) {
-				if (i++ > 0)
-					writer.append(", ");
-				writer.append("<a href=\"tickets?action=download&ticketId=")
-					.append(idString).append("&attachment=")
-					.append(attachment.getName()).append("\">")
-					.append(attachment.getName()).append("</a>");
-			}
-			writer.append("<br/><br/>\r\n");
-		}
-		
-		writer.append("<a href=\"tickets\">Return to list tickets</a>\r\n");
-		
-		this.writeFooter(writer);
+		req.getRequestDispatcher("/WEB-INF/jsp/view/viewTicket.jsp").forward(req, resp);
 	}
 
 	private void downloadAttachment(HttpServletRequest req,
@@ -198,27 +168,11 @@ public class TicketServlet extends HttpServlet {
 		stream.write(attachment.getContents());
 	}
 
-	private void listTickets(HttpServletResponse resp) throws IOException {
-		PrintWriter writer = this.writeHeader(resp);
+	private void listTickets(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
+		req.setAttribute("ticketDatabase", this.ticketDatabase);
 		
-		writer.append("<h2>Tickets</h2>\r\n");
-		writer.append("<a href=\"tickets?action=create\">Create Ticket</a>").append("<br/><br/>\r\n");
-		
-		if (this.ticketDatabase.size() == 0) {
-			writer.append("<i>There are no tickets in the system.<i>\r\n");
-		} else {
-			for (int id : this.ticketDatabase.keySet()) {
-				String idString = Integer.toString(id);
-				Ticket ticket = this.ticketDatabase.get(id);
-				writer.append("Ticket #").append(idString)
-					.append(": <a href=\"tickets?action=view&ticketId=")
-					.append(idString).append("\">").append(ticket.getSubject())
-					.append("</a> (customer: ").append(ticket.getCustomerName())
-					.append(")<br/>\r\n");
-			}
-		}
-		
-		this.writeFooter(writer);
+		req.getRequestDispatcher("/WEB-INF/jsp/view/listTickets.jsp")
+			.forward(req, resp);
 	}
 	
 	private Ticket getTicket(String idString, HttpServletResponse resp) throws IOException {
@@ -238,24 +192,5 @@ public class TicketServlet extends HttpServlet {
 			resp.sendRedirect("tickets");
 			return null;
 		}
-	}
-	
-	private PrintWriter writeHeader(HttpServletResponse resp) throws IOException {
-		resp.setContentType("text/html");
-		resp.setCharacterEncoding("UTF-8");
-		
-		PrintWriter writer = resp.getWriter();
-		writer.append("<!DOCTYPE html>\r\n")
-			  .append("<html>\r\n")
-			  .append("  <head>\r\n")
-			  .append("    <title>Customer Support</title>\r\n")
-			  .append("  </head>\r\n")
-			  .append("  <body>\r\n");
-		
-		return writer;
-	}
-	
-	private void writeFooter(PrintWriter writer) {
-		writer.append("  </body>\r\n").append("</html>\r\n");
 	}
 }
