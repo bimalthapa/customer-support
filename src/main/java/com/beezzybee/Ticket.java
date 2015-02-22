@@ -1,5 +1,6 @@
 package com.beezzybee;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -10,6 +11,7 @@ public class Ticket {
 	private String customerName;
 	private String subject;
 	private String body;
+	private Instant dateCreated;
 	
 	public Attachment getAttachment(String name) {
 		return this.attachments.get(name);
@@ -49,5 +51,13 @@ public class Ticket {
 
 	public int getNumberOfAttachments() {
 		return this.attachments.size();
+	}
+
+	public Instant getDateCreated() {
+		return dateCreated;
+	}
+
+	public void setDateCreated(Instant dateCreated) {
+		this.dateCreated = dateCreated;
 	}
 }
